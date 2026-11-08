@@ -1,0 +1,205 @@
+openapi: 3.1.0
+info:
+  title: Serko Member Management API
+  version: 1.0.0
+  description: API for searching members and updating their travel roles.
+
+servers:
+  - url: http://localhost:5080
+    description: Local development API
+
+tags:
+  - name: Members
+  - name: Development
+
+paths:
+  /api/members:
+    get:
+      tags: [Members]
+      summary: Search and filter members
+      parameters:
+        - name: search
+          in: query
+          required: false
+          description: Case-insensitive partial match against first name, last name, or email.
+          schema:
+            type: string
+        - name: role
+          in: query
+          required: false
+          description: Filter by an exact travel role. Combined with search using AND logic.
+          schema:
+            $ref: "#/components/schemas/Role"
+      responses:
+        "200":
+          description: Matching members
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Member"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/members/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Members]
+      summary: Get a member by ID
+      responses:
+        "200":
+          description: Member details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      tags: [Members]
+      summary: Update a member's travel role
+      description: Only the role field can be updated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleRequest"
+      responses:
+        "200":
+          description: Updated member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /api/dev/fail-next-save:
+    post:
+      tags: [Development]
+      summary: Arm the one-shot simulated save failure
+      description: Development-only endpoint. The next role update returns HTTP 503 before modifying the member. The failure is consumed once.
+      responses:
+        "200":
+          description: The next role update is armed to fail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [armed]
+                properties:
+                  armed:
+                    type: boolean
+                    const: true
+        "404":
+          description: Endpoint unavailable outside Development
+
+components:
+  schemas:
+    Role:
+      type: string
+      enum:
+        - traveller
+        - arranger
+        - administrator
+
+    Member:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - firstName
+        - lastName
+        - email
+        - role
+      properties:
+        id:
+          type: string
+          example: m1
+        firstName:
+          type: string
+          example: Alex
+        lastName:
+          type: string
+          example: River
+        email:
+          type: string
+          format: email
+          example: alex@example.test
+        role:
+          $ref: "#/components/schemas/Role"
+
+    UpdateRoleRequest:
+      type: object
+      additionalProperties: false
+      required: [role]
+      properties:
+        role:
+          $ref: "#/components/schemas/Role"
+
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: INVALID_ROLE
+            message:
+              type: string
+              example: The supplied role is not supported.
+
+  responses:
+    BadRequest:
+      description: Invalid request or unsupported role
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            error:
+              code: INVALID_ROLE
+              message: The supplied role is not supported.
+
+    NotFound:
+      description: Member not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            error:
+              code: MEMBER_NOT_FOUND
+              message: No member exists with the supplied ID.
+
+    ServiceUnavailable:
+      description: Simulated temporary save failure
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            error:
+              code: SIMULATED_FAILURE
+              message: The simulated save failure was triggered. Please retry.
