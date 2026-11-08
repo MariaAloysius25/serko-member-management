@@ -3,17 +3,41 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   failNextSave,
-  getMember,
   getMembers,
   updateMemberRole,
 } from "../lib/members-api";
 import type { Member, Role } from "../types/member";
+
+export function getSelectionAfterRefresh(
+  updatedMemberId: string,
+  refreshedMembers: Member[],
+): Member | null {
+  return reconcileMemberSelection(
+    updatedMemberId,
+    refreshedMembers,
+    updatedMemberId,
+  );
+}
+
+export function reconcileMemberSelection(
+  selectedMemberId: string | null,
+  refreshedMembers: Member[],
+  preferredMemberId: string | null = selectedMemberId,
+): Member | null {
+  const memberToKeep = preferredMemberId ?? selectedMemberId;
+  return (
+    refreshedMembers.find((member) => member.id === memberToKeep) ??
+    refreshedMembers[0] ??
+    null
+  );
+}
 
 export function useMembers() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<Role | "">("");
@@ -27,60 +51,104 @@ export function useMembers() {
   const [armingFailure, setArmingFailure] = useState(false);
   const [failureMessage, setFailureMessage] = useState<string | null>(null);
   const requestId = useRef(0);
+  const selectionAfterSave = useRef<string | null>(null);
+  const filters = useRef({ search: debouncedSearch, roleFilter });
+  const appliedFilters = useRef({ search: "", roleFilter: "" as Role | "" });
+  const selection = useRef({ selectedId, selectedMember, draftRole });
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 250);
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  const loadMembers = useCallback(async () => {
-    const currentRequestId = ++requestId.current;
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const result = await getMembers(
-        debouncedSearch || undefined,
-        roleFilter || undefined,
-      );
-      if (currentRequestId !== requestId.current) return;
-      setMembers(result);
-      setLoaded(true);
-      setSelectedId((current) => current ?? result[0]?.id ?? null);
-    } catch (error) {
-      if (currentRequestId !== requestId.current) return;
-      setLoadError(
-        error instanceof Error ? error.message : "Unable to load members.",
-      );
-    } finally {
-      if (currentRequestId === requestId.current) setLoading(false);
-    }
+  useEffect(() => {
+    filters.current = { search: debouncedSearch, roleFilter };
   }, [debouncedSearch, roleFilter]);
 
   useEffect(() => {
-    void Promise.resolve().then(loadMembers);
-  }, [loadMembers]);
+    selection.current = { selectedId, selectedMember, draftRole };
+  }, [selectedId, selectedMember, draftRole]);
+
+  const loadMembers = useCallback(async (options: { quiet?: boolean } = {}) => {
+    const currentRequestId = ++requestId.current;
+    if (!options.quiet) setLoading(true);
+    setLoadError(null);
+    setRefreshError(null);
+    try {
+      const currentFilters = filters.current;
+      const result = await getMembers(
+        currentFilters.search || undefined,
+        currentFilters.roleFilter || undefined,
+      );
+      if (currentRequestId !== requestId.current) return;
+
+      const currentSelection = selection.current;
+      const preferredMemberId = selectionAfterSave.current;
+      const selected = reconcileMemberSelection(
+        currentSelection.selectedId,
+        result,
+        preferredMemberId,
+      );
+      const selectionWillChange = selected?.id !== currentSelection.selectedId;
+      const hasUnsavedChanges =
+        currentSelection.selectedMember !== null &&
+        currentSelection.draftRole !== null &&
+        currentSelection.draftRole !== currentSelection.selectedMember.role;
+
+      if (
+        selectionWillChange &&
+        !preferredMemberId &&
+        hasUnsavedChanges &&
+        !window.confirm("Discard your unsaved role change?")
+      ) {
+        const previousFilters = appliedFilters.current;
+        filters.current = previousFilters;
+        setSearch(previousFilters.search);
+        setDebouncedSearch(previousFilters.search);
+        setRoleFilter(previousFilters.roleFilter);
+        return;
+      }
+
+      appliedFilters.current = currentFilters;
+      setMembers(result);
+      setLoaded(true);
+      selectionAfterSave.current = null;
+      const nextDraftRole =
+        selected?.id === currentSelection.selectedId
+          ? currentSelection.draftRole
+          : selected?.role ?? null;
+      selection.current = {
+        selectedId: selected?.id ?? null,
+        selectedMember: selected,
+        draftRole: nextDraftRole,
+      };
+      setSelectedId(selected?.id ?? null);
+      setSelectedMember(selected);
+      setDetailError(null);
+      if (selected?.id !== currentSelection.selectedId) {
+        setDraftRole(selected?.role ?? null);
+        setSaveError(null);
+        setSaveMessage(null);
+      }
+    } catch (error) {
+      if (currentRequestId !== requestId.current) return;
+      const message =
+        error instanceof Error ? error.message : "Unable to load members.";
+      if (options.quiet) {
+        setRefreshError(message);
+      } else {
+        setLoadError(message);
+      }
+    } finally {
+      if (currentRequestId === requestId.current && !options.quiet) {
+        setLoading(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    if (!selectedId) return;
-
-    let active = true;
-    void getMember(selectedId)
-      .then((member) => {
-        if (!active) return;
-        setSelectedMember(member);
-        setDraftRole(member.role);
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-        setDetailError(
-          error instanceof Error ? error.message : "Unable to load member details.",
-        );
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [selectedId]);
+    void Promise.resolve().then(() => loadMembers());
+  }, [debouncedSearch, roleFilter, loadMembers]);
 
   const selectMember = (memberId: string) => {
     if (saving || memberId === selectedId) return;
@@ -92,11 +160,19 @@ export function useMembers() {
     ) {
       return;
     }
-    setSelectedMember(null);
+    const member = members.find((candidate) => candidate.id === memberId) ?? null;
+    selectionAfterSave.current = null;
+    selection.current = {
+      selectedId: memberId,
+      selectedMember: member,
+      draftRole: member?.role ?? null,
+    };
+    setSelectedMember(member);
     setDetailError(null);
-    setDraftRole(null);
+    setDraftRole(member?.role ?? null);
     setSaveError(null);
     setSaveMessage(null);
+    setRefreshError(null);
     setSelectedId(memberId);
   };
 
@@ -119,6 +195,11 @@ export function useMembers() {
         draftRole,
       );
       setSelectedMember(updatedMember);
+      selection.current = {
+        selectedId: updatedMember.id,
+        selectedMember: updatedMember,
+        draftRole: updatedMember.role,
+      };
       setMembers((current) =>
         current.map((member) =>
           member.id === updatedMember.id ? updatedMember : member,
@@ -126,6 +207,8 @@ export function useMembers() {
       );
       setDraftRole(updatedMember.role);
       setSaveMessage("Travel role saved.");
+      selectionAfterSave.current = updatedMember.id;
+      await loadMembers({ quiet: true });
     } catch (error) {
       setSaveError(
         error instanceof Error
@@ -159,6 +242,7 @@ export function useMembers() {
     loading,
     loaded,
     loadError,
+    refreshError,
     loadMembers,
     search,
     setSearch,
