@@ -85,3 +85,27 @@ The submitter reviewed the repository instructions and API contract, inspected i
 The in-memory store and minimal API keep the exercise small and make integration tests isolated, but provide neither persistence nor multi-instance coordination. The failure flag is process-local and intended only for Development.
 
 The frontend uses native controls and local React state without adding a state-management dependency. Authentication, authorization, pagination, production hosting configuration, and a complete mobile usability pass are outside the current implementation. Possible follow-up work includes rendered-hook tests for asynchronous state transitions, a dedicated CORS test, a more thorough mobile review, and persistent evidence artifacts for the main journey and failure/retry demonstration.
+
+## Evidence
+
+The following screenshots demonstrate the main application journeys and error-handling behaviour.
+
+### Initial application
+
+![Initial application showing the eight seeded members](docs/evidence/01-initial-load.png)
+
+### Combined search and role filtering
+
+![Searching for Alex while filtering by Arranger](docs/evidence/02-combined-search-filter.png)
+
+### Successful role update
+
+![Successful travel role update with confirmation](docs/evidence/03-successful-role-update.png)
+
+### Simulated save failure
+
+![Save failure showing the HTTP 503 error](docs/evidence/04-save-failure.png)
+
+### Successful retry
+
+![Successful role update after retrying the failed save](docs/evidence/05-successful-retry.png)
