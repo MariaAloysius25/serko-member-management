@@ -24,6 +24,8 @@ The frontend and backend are separate applications that run as separate processe
 ├── APPROACH.md
 ├── README.md
 ├── openapi.yaml
+├── docs/
+│   └── evidence/          # Screenshots of key UI states and save recovery
 ├── .github/
 │   └── copilot-instructions.md
 ├── backend/
@@ -32,13 +34,18 @@ The frontend and backend are separate applications that run as separate processe
 │   │   ├── Models/
 │   │   └── Program.cs
 │   └── Serko.MemberManagement.Api.Tests/
-│       └── UnitTest1.cs
+│       └── MemberApiIntegrationTests.cs
 └── frontend/
     ├── package.json
     ├── vitest.config.ts
     └── src/
-        ├── app/               # Next.js page and component tests
-        ├── hooks/             # Member, filter, selection, and save state
+        ├── app/               # Next.js route and page-level tests
+        ├── components/
+        │   └── members/
+        │       ├── MemberSearch.tsx
+        │       ├── MemberList.tsx
+        │       └── MemberDetails.tsx
+        ├── hooks/             # Member data, filtering, selection, and save state
         ├── lib/               # Typed API client and API-client tests
         ├── test/              # Vitest setup
         └── types/             # Member and role types
@@ -79,7 +86,7 @@ npm ci
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The API allows requests from that origin for GET, PATCH, and POST methods with the `Content-Type` request header.
+Open [http://localhost:3000](http://localhost:3000). The API's CORS configuration allows requests from that origin using GET, PATCH, and POST, with the Content-Type request header.
 
 ## Configuration
 
@@ -99,12 +106,12 @@ Restart the frontend development server after changing the environment file.
 
 The full API contract is defined in [openapi.yaml](./openapi.yaml). The local API base URL is `http://localhost:5080`.
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/members` | List members; accepts optional `search` and `role` query parameters |
-| GET | `/api/members/{id}` | Return one member by ID |
-| PATCH | `/api/members/{id}` | Update the member's role |
-| POST | `/api/dev/fail-next-save` | Development-only control to arm the next save failure |
+| Method | Path                      | Purpose                                                             |
+| ------ | ------------------------- | ------------------------------------------------------------------- |
+| GET    | `/api/members`            | List members; accepts optional `search` and `role` query parameters |
+| GET    | `/api/members/{id}`       | Return one member by ID                                             |
+| PATCH  | `/api/members/{id}`       | Update the member's role                                            |
+| POST   | `/api/dev/fail-next-save` | Development-only control to arm the next save failure               |
 
 `GET /api/members` returns an object with an `items` array. The PATCH request body contains only a role, for example:
 
@@ -165,5 +172,4 @@ Frontend API-client tests mock `fetch` and do not require a running backend.
 - There is no authentication or authorization; role changes are not tied to an administrator identity.
 - The simulated failure flag is process-local and intended for development demonstration.
 - CORS allows the configured local frontend origin only. Other deployment origins require an intentional CORS configuration change.
-- The layout uses responsive Tailwind styles, but mobile UX improvements were deferred; mobile behavior has not been fully optimized.
-- `docs/evidence/` contains no saved evidence artifacts. Screenshots or other persistent evidence of the main user journey and simulated failure/retry are not included.
+- The layout uses responsive Tailwind styles and has been manually checked at a narrow viewport. Further mobile-specific UX refinements were outside the scope of this exercise.

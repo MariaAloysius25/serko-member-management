@@ -28,6 +28,20 @@ When a list response is accepted, the current selection is kept if that member r
 
 The details panel derives the selected member from the current selected ID and result list rather than issuing a separate detail request during member switching. A failed save does not replace the draft role, so retrying submits the same selection. Manually switching members with unsaved edits requires confirmation. If a filter would remove an unsaved selected member, the same confirmation is presented; declining restores the previously applied filters.
 
+## Frontend component structure
+
+The frontend separates page-level coordination, reusable presentation components, and member-management state.
+
+- `app/page.tsx` composes the page, connects the member-management hook to the UI components, and coordinates save-related focus management.
+- `components/members/MemberSearch.tsx` renders the search input and travel-role filter.
+- `components/members/MemberList.tsx` renders the member results and their loading, empty, and error states.
+- `components/members/MemberDetails.tsx` renders the selected member's information and role-editing form, including save feedback and retry controls.
+- `hooks/use-members.ts` owns member loading, filtering, selection, role drafts, saving, and error state.
+
+The components receive the data and callbacks they need through props. Data loading and member-management state remain centralized in the hook rather than being duplicated across presentation components.
+
+The page also coordinates keyboard focus after saving: focus moves to the success feedback when the saved member remains selected, or returns to the search input when the refresh changes or clears the selection.
+
 ## Error handling and simulated failure
 
 The API client raises a typed error for non-2xx responses, retaining the HTTP status and API error code/message when present. It does not turn network failures into success-shaped responses.
@@ -67,7 +81,7 @@ The page uses semantic sections, headings, lists, forms, associated labels, nati
 
 Manual keyboard checks covered navigation through search, role filtering, colleague selection, role editing, and saving, including visible focus indicators. Focus loss after saving was identified and addressed: focus moves to the success message if the saved member remains selected, or to the search input if that member is removed from the filtered results. The no-results state was also checked with a search that returned no matches.
 
-Tailwind responsive classes provide a desktop list/details layout and allow member entries to stack at narrower widths. A narrow-screen check confirmed that the colleagues and details panels stack vertically. This is a responsive baseline only: mobile UX improvements were deferred, and the mobile layout has not been fully optimized.
+Tailwind responsive classes provide a desktop list/details layout and allow member entries to stack at narrower widths. A narrow-screen check confirmed that the colleagues and details panels stack vertically. This is a responsive baseline rather than a fully optimized mobile experience; further mobile-specific UX work was outside the scope of this exercise.
 
 No automated accessibility audit was performed.
 
@@ -88,7 +102,7 @@ The submitter reviewed the repository instructions and API contract, inspected i
 
 The in-memory store and minimal API keep the exercise small and make integration tests isolated, but provide neither persistence nor multi-instance coordination. The failure flag is process-local and intended only for Development.
 
-The frontend uses native controls and local React state without adding a state-management dependency. Authentication, authorization, pagination, production hosting configuration, and a complete mobile usability pass are outside the current implementation. Possible follow-up work includes rendered-hook tests for asynchronous state transitions, a dedicated CORS test, a more thorough mobile review, and persistent evidence artifacts for the main journey and failure/retry demonstration.
+The frontend uses native controls and local React state without adding a state-management dependency. Authentication, authorization, pagination, production hosting configuration, and a complete mobile usability pass are outside the current implementation. Possible follow-up work includes rendered-hook tests for asynchronous state transitions, a dedicated CORS test, and a more thorough mobile usability review.
 
 ## Evidence
 
@@ -113,3 +127,7 @@ The following screenshots demonstrate the main application journeys and error-ha
 ### Successful retry
 
 ![Successful role update after retrying the failed save](docs/evidence/05-successful-retry.png)
+
+### No results and narrow-screen layout
+
+![No-results state and responsive layout at a narrow viewport](docs/evidence/06-no-results-and-mobile-layout.png)
