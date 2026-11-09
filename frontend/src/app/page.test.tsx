@@ -26,6 +26,20 @@ const updatedAlex: Member = {
     ...alex,
     role: "arranger",
 };
+const sam: Member = {
+    id: "m2",
+    firstName: "Sam",
+    lastName: "Brook",
+    email: "sam@example.test",
+    role: "arranger",
+};
+const jordan: Member = {
+    id: "m8",
+    firstName: "Jordan",
+    lastName: "Lake",
+    email: "jordan@example.test",
+    role: "arranger",
+};
 
 describe("member management page", () => {
     beforeEach(() => {
@@ -95,12 +109,48 @@ describe("member management page", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "Save role" }));
 
-        expect(await screen.findByText("Travel role saved.")).toBeInTheDocument();
+        const successMessage = await screen.findByText("Travel role saved.");
+        await waitFor(() => {
+            expect(document.activeElement).toBe(successMessage);
+        });
 
         expect(api.updateMemberRole).toHaveBeenCalledWith("m1", "arranger");
         expect(
             screen.getByLabelText("Travel role", { selector: "#member-role" })
         ).toHaveValue("arranger"); expect(screen.getByRole("button", { name: "Save role" })).toBeDisabled();
+    });
+
+    it("focuses search when refresh changes selection after saving", async () => {
+        api.getMembers
+            .mockResolvedValueOnce([sam, jordan])
+            .mockResolvedValueOnce([sam, jordan])
+            .mockResolvedValueOnce([jordan]);
+        api.updateMemberRole.mockResolvedValue({ ...sam, role: "traveller" });
+
+        render(<Home />);
+
+        await screen.findByRole("button", { name: /Sam Brook/ });
+
+        fireEvent.change(document.getElementById("role-filter") as HTMLSelectElement, {
+            target: { value: "arranger" },
+        });
+        await waitFor(() => {
+            expect(api.getMembers).toHaveBeenLastCalledWith(undefined, "arranger");
+        });
+
+        fireEvent.change(screen.getByLabelText("Travel role", { selector: "#member-role" }), {
+            target: { value: "traveller" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Save role" }));
+
+        const searchInput = screen.getByLabelText("Search members");
+        await waitFor(() => {
+            expect(document.activeElement).toBe(searchInput);
+        });
+        expect(
+            screen.getByRole("button", { name: /Jordan Lake/ }),
+        ).toHaveAttribute("aria-current", "true");
+        expect(screen.queryByText("Travel role saved.")).not.toBeInTheDocument();
     });
 
     it("preserves the unsaved role after a failed save and allows retry", async () => {

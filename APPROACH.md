@@ -65,7 +65,11 @@ No automated accessibility audit is currently included.
 
 The page uses semantic sections, headings, lists, forms, associated labels, native buttons and selects, visible focus styles, and live status and error regions. Member rows are buttons and can be navigated with the keyboard. Loading and saving status is exposed to assistive technology.
 
-Tailwind responsive classes provide a desktop list/details layout and allow member entries to stack at narrower widths. This is a responsive baseline only: mobile UX improvements were deferred, and the mobile layout has not been fully optimized.
+Manual keyboard checks covered navigation through search, role filtering, colleague selection, role editing, and saving, including visible focus indicators. Focus loss after saving was identified and addressed: focus moves to the success message if the saved member remains selected, or to the search input if that member is removed from the filtered results. The no-results state was also checked with a search that returned no matches.
+
+Tailwind responsive classes provide a desktop list/details layout and allow member entries to stack at narrower widths. A narrow-screen check confirmed that the colleagues and details panels stack vertically. This is a responsive baseline only: mobile UX improvements were deferred, and the mobile layout has not been fully optimized.
+
+No automated accessibility audit was performed.
 
 ## AI assistance and independent review
 

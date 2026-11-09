@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useMembers } from "../hooks/use-members";
 import type { Role } from "../types/member";
 
@@ -38,10 +39,41 @@ export default function Home() {
     failureMessage,
     armFailure,
   } = useMembers();
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const saveFeedbackRef = useRef<HTMLParagraphElement | null>(null);
+  const savedMemberIdRef = useRef<string | null>(null);
   const isDirty =
     selectedMember !== null &&
     draftRole !== null &&
     draftRole !== selectedMember.role;
+
+  useEffect(() => {
+    if (saving) return;
+
+    const savedMemberId = savedMemberIdRef.current;
+    if (!savedMemberId) return;
+
+    if (saveError) {
+      savedMemberIdRef.current = null;
+      return;
+    }
+
+    if (saveMessage || selectedId !== savedMemberId) {
+      if (selectedId === savedMemberId) {
+        saveFeedbackRef.current?.focus({ preventScroll: true });
+      } else {
+        searchInputRef.current?.focus({ preventScroll: true });
+      }
+      savedMemberIdRef.current = null;
+    }
+  }, [saveError, saveMessage, saving, selectedId]);
+
+  const handleSaveRole = () => {
+    if (selectedMember && isDirty && !saving && !isRefreshingResults) {
+      savedMemberIdRef.current = selectedMember.id;
+    }
+    void saveRole();
+  };
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
@@ -118,6 +150,7 @@ export default function Home() {
                   Search members
                 </label>
                 <input
+                  ref={searchInputRef}
                   id="member-search"
                   type="search"
                   value={search}
@@ -296,7 +329,7 @@ export default function Home() {
                 className="mt-6"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  void saveRole();
+                  handleSaveRole();
                 }}
               >
                 <label
@@ -361,6 +394,8 @@ export default function Home() {
                 )}
                 {saveMessage && (
                   <p
+                    ref={saveFeedbackRef}
+                    tabIndex={-1}
                     className="text-sm font-medium text-green-800"
                     role="status"
                     aria-live="polite"
