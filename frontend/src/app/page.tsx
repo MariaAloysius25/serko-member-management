@@ -16,7 +16,9 @@ export default function Home() {
     members,
     loading,
     loaded,
+    isRefreshingResults,
     loadError,
+    refreshError,
     loadMembers,
     search,
     setSearch,
@@ -90,21 +92,20 @@ export default function Home() {
                   Colleagues
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  {loading && loaded
-                    ? "Updating results…"
-                    : `${members.length} ${members.length === 1 ? "member" : "members"}`}
+                  {members.length} {members.length === 1 ? "member" : "members"}
                 </p>
               </div>
-              {loading && (
+              {isRefreshingResults && (
                 <span
-                  className="mt-1 inline-flex items-center gap-2 text-sm text-indigo-700"
+                  className="mt-1 inline-flex items-center gap-2 text-xs text-slate-500"
                   role="status"
+                  aria-live="polite"
                 >
                   <span
-                    className="h-2 w-2 animate-pulse rounded-full bg-indigo-600"
+                    className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500"
                     aria-hidden="true"
                   />
-                  Loading
+                  Updating results…
                 </span>
               )}
             </div>
@@ -151,7 +152,7 @@ export default function Home() {
             </div>
           </div>
 
-          {loadError ? (
+          {loadError && !loaded ? (
             <div className="m-5 rounded-xl border border-red-200 bg-red-50 p-4 sm:m-6">
               <p className="font-medium text-red-900">Couldn’t load members</p>
               <p className="mt-1 text-sm text-red-800" role="alert">
@@ -185,12 +186,13 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => selectMember(member.id)}
+                      disabled={isRefreshingResults || saving}
                       aria-current={isSelected ? "true" : undefined}
                       className={`w-full rounded-xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 sm:flex sm:items-center sm:justify-between ${
                         isSelected
                           ? "border-indigo-300 bg-indigo-50"
                           : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                      }`}
+                      } disabled:cursor-wait disabled:opacity-70`}
                     >
                       <span className="block min-w-0">
                         <span className="block truncate font-semibold text-slate-900">
@@ -209,10 +211,40 @@ export default function Home() {
               })}
             </ul>
           )}
+          {loadError && loaded && (
+            <div className="mx-4 mb-4 rounded-xl border border-red-200 bg-red-50 p-4 sm:mx-5">
+              <p className="text-sm text-red-900" role="alert">
+                Couldn’t update the results: {loadError}
+              </p>
+              <button
+                type="button"
+                onClick={() => void loadMembers()}
+                className="mt-3 min-h-10 rounded-lg border border-red-300 bg-white px-3 text-sm font-medium text-red-900 hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+              >
+                Retry results
+              </button>
+            </div>
+          )}
+          {refreshError && (
+            <div className="mx-4 mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:mx-5">
+              <p className="text-sm text-amber-950" role="alert">
+                The role was saved, but the filtered member list could not be refreshed:{" "}
+                {refreshError}
+              </p>
+              <button
+                type="button"
+                onClick={() => void loadMembers({ quiet: true })}
+                className="mt-3 min-h-10 rounded-lg border border-amber-300 bg-white px-3 text-sm font-medium text-amber-950 hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+              >
+                Retry refresh
+              </button>
+            </div>
+          )}
         </section>
 
         <section
           aria-labelledby="details-heading"
+          aria-busy={isRefreshingResults}
           className="h-fit min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm"
         >
           <div className="border-b border-slate-200 px-5 py-5 sm:px-6">
@@ -222,6 +254,19 @@ export default function Home() {
             <p className="mt-1 text-sm text-slate-600">
               Review profile information and update the travel role.
             </p>
+            {isRefreshingResults && selectedMember && (
+              <p
+                className="mt-2 inline-flex items-center gap-2 text-xs text-slate-500"
+                role="status"
+                aria-live="polite"
+              >
+                <span
+                  className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500"
+                  aria-hidden="true"
+                />
+                Updating member details
+              </p>
+            )}
           </div>
           {detailError ? (
             <div className="p-5 sm:p-6">
@@ -266,7 +311,7 @@ export default function Home() {
                   onChange={(event) => {
                     setDraftRole(event.target.value as Role);
                   }}
-                  disabled={saving}
+                  disabled={saving || isRefreshingResults}
                   className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:bg-slate-100"
                 >
                   {roles.map((role) => (
@@ -278,7 +323,7 @@ export default function Home() {
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button
                     type="submit"
-                    disabled={!isDirty || saving}
+                    disabled={!isDirty || saving || isRefreshingResults}
                     className="min-h-11 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
                     {saving ? "Saving…" : "Save role"}
@@ -307,7 +352,7 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => void saveRole()}
-                      disabled={saving}
+                      disabled={saving || isRefreshingResults}
                       className="mt-2 min-h-9 rounded-md border border-red-300 bg-white px-3 font-medium hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:opacity-60"
                     >
                       Retry save

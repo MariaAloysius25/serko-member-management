@@ -1,11 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  failNextSave,
-  getMembers,
-  updateMemberRole,
-} from "../lib/members-api";
+import { failNextSave, getMembers, updateMemberRole } from "../lib/members-api";
 import type { Member, Role } from "../types/member";
 
 export function getSelectionAfterRefresh(
@@ -32,6 +28,13 @@ export function reconcileMemberSelection(
   );
 }
 
+export function getSelectedMember(
+  selectedMemberId: string | null,
+  members: Member[],
+): Member | null {
+  return members.find((member) => member.id === selectedMemberId) ?? null;
+}
+
 export function useMembers() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +45,7 @@ export function useMembers() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<Role | "">("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const selectedMember = getSelectedMember(selectedId, members);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [draftRole, setDraftRole] = useState<Role | null>(null);
   const [saving, setSaving] = useState(false);
@@ -52,9 +55,22 @@ export function useMembers() {
   const [failureMessage, setFailureMessage] = useState<string | null>(null);
   const requestId = useRef(0);
   const selectionAfterSave = useRef<string | null>(null);
+  const [appliedFilterState, setAppliedFilterState] = useState<{
+    search: string;
+    roleFilter: Role | "";
+  }>({ search: "", roleFilter: "" });
   const filters = useRef({ search: debouncedSearch, roleFilter });
-  const appliedFilters = useRef({ search: "", roleFilter: "" as Role | "" });
+  const appliedFilters = useRef({
+    search: "",
+    roleFilter: "" as Role | "",
+  });
   const selection = useRef({ selectedId, selectedMember, draftRole });
+  const hasUnappliedFilters =
+    search !== debouncedSearch ||
+    debouncedSearch !== appliedFilterState.search ||
+    roleFilter !== appliedFilterState.roleFilter;
+  const isRefreshingResults =
+    (loading && loaded) || (hasUnappliedFilters && !loadError);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 250);
@@ -103,6 +119,7 @@ export function useMembers() {
       ) {
         const previousFilters = appliedFilters.current;
         filters.current = previousFilters;
+        setAppliedFilterState(previousFilters);
         setSearch(previousFilters.search);
         setDebouncedSearch(previousFilters.search);
         setRoleFilter(previousFilters.roleFilter);
@@ -110,20 +127,20 @@ export function useMembers() {
       }
 
       appliedFilters.current = currentFilters;
+      setAppliedFilterState(currentFilters);
       setMembers(result);
       setLoaded(true);
       selectionAfterSave.current = null;
       const nextDraftRole =
         selected?.id === currentSelection.selectedId
           ? currentSelection.draftRole
-          : selected?.role ?? null;
+          : (selected?.role ?? null);
       selection.current = {
         selectedId: selected?.id ?? null,
         selectedMember: selected,
         draftRole: nextDraftRole,
       };
       setSelectedId(selected?.id ?? null);
-      setSelectedMember(selected);
       setDetailError(null);
       if (selected?.id !== currentSelection.selectedId) {
         setDraftRole(selected?.role ?? null);
@@ -151,7 +168,7 @@ export function useMembers() {
   }, [debouncedSearch, roleFilter, loadMembers]);
 
   const selectMember = (memberId: string) => {
-    if (saving || memberId === selectedId) return;
+    if (saving || isRefreshingResults || memberId === selectedId) return;
     if (
       selectedMember &&
       draftRole !== null &&
@@ -160,14 +177,14 @@ export function useMembers() {
     ) {
       return;
     }
-    const member = members.find((candidate) => candidate.id === memberId) ?? null;
+    const member =
+      members.find((candidate) => candidate.id === memberId) ?? null;
     selectionAfterSave.current = null;
     selection.current = {
       selectedId: memberId,
       selectedMember: member,
       draftRole: member?.role ?? null,
     };
-    setSelectedMember(member);
     setDetailError(null);
     setDraftRole(member?.role ?? null);
     setSaveError(null);
@@ -179,6 +196,8 @@ export function useMembers() {
   const saveRole = async () => {
     if (
       saving ||
+      isRefreshingResults ||
+      hasUnappliedFilters ||
       !selectedMember ||
       !draftRole ||
       draftRole === selectedMember.role
@@ -194,7 +213,6 @@ export function useMembers() {
         selectedMember.id,
         draftRole,
       );
-      setSelectedMember(updatedMember);
       selection.current = {
         selectedId: updatedMember.id,
         selectedMember: updatedMember,
@@ -241,6 +259,7 @@ export function useMembers() {
     members,
     loading,
     loaded,
+    isRefreshingResults,
     loadError,
     refreshError,
     loadMembers,

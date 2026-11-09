@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getSelectedMember,
   getSelectionAfterRefresh,
   reconcileMemberSelection,
 } from "./use-members";
@@ -80,5 +81,25 @@ describe("selection after filtered member results change", () => {
 
   it("selects the first search result when the selected member no longer matches", () => {
     expect(reconcileMemberSelection(robin.id, [otherMember])).toBe(otherMember);
+  });
+});
+
+describe("selected member details", () => {
+  it("uses the latest selected member during rapid switching", () => {
+    const members = [robin, lee, sam];
+    expect(getSelectedMember(robin.id, members)).toBe(robin);
+    expect(getSelectedMember(lee.id, members)).toBe(lee);
+    expect(getSelectedMember(sam.id, members)).toBe(sam);
+  });
+
+  it("does not display details for a previous selection after the selection changes", () => {
+    const latestSelectedId = lee.id;
+    expect(getSelectedMember(latestSelectedId, [robin, lee])).toBe(lee);
+    expect(getSelectedMember(latestSelectedId, [robin])).toBeNull();
+  });
+
+  it("clears details when there is no selected member or no matching result", () => {
+    expect(getSelectedMember(null, [robin, lee])).toBeNull();
+    expect(getSelectedMember(lee.id, [])).toBeNull();
   });
 });
