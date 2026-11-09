@@ -137,6 +137,45 @@ public sealed class MemberApiIntegrationTests
     }
 
     [Fact]
+    public async Task PatchMemberRole_WithEmptyObject_ReturnsBadRequestWithApiError()
+    {
+        using var factory = new TestWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.PatchAsync(
+            "/api/members/m1",
+            new StringContent("{}", System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<ApiErrorResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("INVALID_ROLE", payload.Error.Code);
+        Assert.Equal("The supplied role is not supported.", payload.Error.Message);
+    }
+
+    [Fact]
+    public async Task PatchMemberRole_WithNullRole_ReturnsBadRequestWithApiError()
+    {
+        using var factory = new TestWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.PatchAsync(
+            "/api/members/m1",
+            new StringContent(
+                """{"role": null}""",
+                System.Text.Encoding.UTF8,
+                "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<ApiErrorResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("INVALID_ROLE", payload.Error.Code);
+        Assert.Equal("The supplied role is not supported.", payload.Error.Message);
+    }
+
+    [Fact]
     public async Task PatchMemberRole_UnknownMember_ReturnsNotFound()
     {
         using var factory = new TestWebApplicationFactory();
